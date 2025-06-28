@@ -82,7 +82,7 @@ CLIPG_CONFIG = {
 class ClipG:
     def __init__(self, model_folder: str, device: str = "cpu"):
         with safe_open(
-            f"{model_folder}/clip_g.safetensors", framework="pt", device="cpu"
+            f"{model_folder}/text_encoders/clip_g.safetensors", framework="pt", device="cpu"
         ) as f:
             self.model = SDXLClipG(CLIPG_CONFIG, device=device, dtype=torch.float32)
             load_into(f, self.model.transformer, "", device, torch.float32)
@@ -100,7 +100,7 @@ CLIPL_CONFIG = {
 class ClipL:
     def __init__(self, model_folder: str):
         with safe_open(
-            f"{model_folder}/clip_l.safetensors", framework="pt", device="cpu"
+            f"{model_folder}/text_encoders/clip_l.safetensors", framework="pt", device="cpu"
         ) as f:
             self.model = SDClipModel(
                 layer="hidden",
@@ -126,7 +126,7 @@ T5_CONFIG = {
 class T5XXL:
     def __init__(self, model_folder: str, device: str = "cpu", dtype=torch.float32):
         with safe_open(
-            f"{model_folder}/t5xxl.safetensors", framework="pt", device="cpu"
+            f"{model_folder}/text_encoders/t5xxl_fp16.safetensors", framework="pt", device="cpu"
         ) as f:
             self.model = T5XXLModel(T5_CONFIG, device=device, dtype=dtype)
             load_into(f, self.model.transformer, "", device, dtype)
@@ -165,12 +165,12 @@ class SD3:
                 shift=shift,
                 file=f,
                 prefix="model.diffusion_model.",
-                device="cuda",
+                device="xpu",
                 dtype=torch.float16,
                 control_model_ckpt=control_model_ckpt,
                 verbose=verbose,
             ).eval()
-            load_into(f, self.model, "model.", "cuda", torch.float16)
+            load_into(f, self.model, "model.", "xpu", torch.float16)
         if control_model_file is not None:
             control_model_ckpt = safe_open(
                 control_model_file, framework="pt", device=device
@@ -210,8 +210,8 @@ class VAE:
 # Note: Sigma shift value, publicly released models use 3.0
 SHIFT = 3.0
 # Naturally, adjust to the width/height of the model you have
-WIDTH = 1024
-HEIGHT = 1024
+WIDTH = 512 
+HEIGHT = 512 
 # Pick your prompt
 PROMPT = "a photo of a cat"
 # Most models prefer the range of 4-5, but still work well around 7
@@ -278,12 +278,12 @@ class SD3Inferencer:
             print("Loading OpenCLIP bigG...")
             self.clip_g = ClipG(model_folder, text_encoder_device)
         print(f"Loading SD3 model {os.path.basename(model)}...")
-        self.sd3 = SD3(model, shift, controlnet_ckpt, verbose, "cuda")
+        self.sd3 = SD3(model, shift, controlnet_ckpt, verbose, "xpu")
         print("Loading VAE model...")
         self.vae = VAE(vae or model)
         print("Models loaded.")
 
-    def get_empty_latent(self, batch_size, width, height, seed, device="cuda"):
+    def get_empty_latent(self, batch_size, width, height, seed, device="xpu"):
         self.print("Prep an empty latent...")
         shape = (batch_size, 16, height // 8, width // 8)
         latents = torch.zeros(shape, device=device)
@@ -334,7 +334,7 @@ class SD3Inferencer:
         return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
 
     def fix_cond(self, cond):
-        cond, pooled = (cond[0].half().cuda(), cond[1].half().cuda())
+        cond, pooled = (cond[0].half().xpu(), cond[1].half().xpu())
         return {"c_crossattn": cond, "y": pooled}
 
     def do_sampling(
@@ -351,10 +351,10 @@ class SD3Inferencer:
         skip_layer_config={},
     ) -> torch.Tensor:
         self.print("Sampling...")
-        latent = latent.half().cuda()
-        self.sd3.model = self.sd3.model.cuda()
-        noise = self.get_noise(seed, latent).cuda()
-        sigmas = self.get_sigmas(self.sd3.model.model_sampling, steps).cuda()
+        latent = latent.half().xpu()
+        self.sd3.model = self.sd3.model.xpu()
+        noise = self.get_noise(seed, latent).xpu()
+        sigmas = self.get_sigmas(self.sd3.model.model_sampling, steps).xpu()
         sigmas = sigmas[int(steps * (1 - denoise)) :]
         conditioning = self.fix_cond(conditioning)
         neg_cond = self.fix_cond(neg_cond)
@@ -392,15 +392,15 @@ class SD3Inferencer:
         image_np = np.array(image).astype(np.float32) / 255.0
         image_np = np.moveaxis(image_np, 2, 0)
         batch_images = np.expand_dims(image_np, axis=0).repeat(1, axis=0)
-        image_torch = torch.from_numpy(batch_images).cuda()
+        image_torch = torch.from_numpy(batch_images).xpu()
         if using_2b_controlnet:
             image_torch = image_torch * 2.0 - 1.0
         elif controlnet_type == 1:  # canny
             image_torch = image_torch * 255 * 0.5 + 0.5
         else:
             image_torch = 2.0 * image_torch - 1.0
-        image_torch = image_torch.cuda()
-        self.vae.model = self.vae.model.cuda()
+        image_torch = image_torch.xpu()
+        self.vae.model = self.vae.model.xpu()
         latent = self.vae.model.encode(image_torch).cpu()
         self.vae.model = self.vae.model.cpu()
         self.print("Encoded")
@@ -413,8 +413,8 @@ class SD3Inferencer:
 
     def vae_decode(self, latent) -> Image.Image:
         self.print("Decoding latent to image...")
-        latent = latent.cuda()
-        self.vae.model = self.vae.model.cuda()
+        latent = latent.xpu()
+        self.vae.model = self.vae.model.xpu()
         image = self.vae.model.decode(latent)
         image = image.float()
         self.vae.model = self.vae.model.cpu()
@@ -460,7 +460,7 @@ class SD3Inferencer:
             latent = self._image_to_latent(init_image, width, height)
         else:
             latent = self.get_empty_latent(1, width, height, seed, "cpu")
-            latent = latent.cuda()
+            latent = latent.xpu()
         if controlnet_cond_image:
             using_2b, control_type = False, 0
             if self.sd3.model.control_model is not None:

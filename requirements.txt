@@ -1,4 +1,4 @@
---extra-index-url https://download.pytorch.org/whl/cu118
+--extra-index-url https://download.pytorch.org/whl/xpu
 transformers
 torch
 torchvision
@@ -10,3 +10,4 @@ einops
 sentencepiece
 protobuf
 webdataset
+huggingface_hub[cli,hf_transfer]
