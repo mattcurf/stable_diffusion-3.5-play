@@ -5,7 +5,7 @@ hf_hub_download("stabilityai/stable-diffusion-3.5-large", "text_encoders/clip_g.
 hf_hub_download("stabilityai/stable-diffusion-3.5-large", "text_encoders/t5xxl_fp16.safetensors", local_dir="models")
 
 # Download this optionally for large model (requires > 16GB VRAM)
-#hf_hub_download("stabilityai/stable-diffusion-3.5-large", "sd3.5_large.safetensors", local_dir="models")
+hf_hub_download("stabilityai/stable-diffusion-3.5-large", "sd3.5_large.safetensors", local_dir="models")
 
 # Download these optionally for control net
 #hf_hub_download("stabilityai/stable-diffusion-3.5-controlnets", "sd3.5_large_controlnet_blur.safetensors", local_dir="models")
