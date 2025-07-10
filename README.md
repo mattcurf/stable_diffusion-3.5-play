@@ -7,8 +7,11 @@ See one of the following branches of this repo:
 - [Intel](https://github.com/mattcurf/stable_diffusion-3.5-play/tree/intel_xpu_support)
 - [Apple](https://github.com/mattcurf/stable_diffusion-3.5-play/tree/apple_mps_support)
 
-Before starting, these instructions assume use of mini-forge for managing the Python environment.  See https://conda-forge.org/download/ for more details on installing.
+## Prerequisites
+1) These instructions assume use of mini-forge for managing the Python environment.  See https://conda-forge.org/download/ for more details on installing.
+2) For NVIDIA and Intel, install the required user-space driver before proceeding.
 
+## Steps
 For any of the branches above, use the following steps to setup and execution sd3.5, replacing <YOUR_HF_TOKEN> with token you created from your account at http://huggingface.co
 ```
 $ git clone https://github.com/mattcurf/stable_diffusion-3.5-play/<branch from above>
@@ -23,3 +26,5 @@ $ python download.py
 
 $ python sd3_infer.py --model models/sd3.5_medium.safetensors --steps 150 --cfg 3.5 --width 1024 --height 1024 --prompt "Scene of a giant ancient tortoise with a fantasy city built on its back. The tortoise’s shell is covered in lush, dense forest with towering trees and a hidden, misty village nestled in the foliage. The city consists of intricately designed buildings that blend seamlessly with the natural environment, featuring rope bridges connecting different sections of the city."
 ```
+
+ ![sample image](/docs/sample.png)
